@@ -646,7 +646,7 @@ func (vo *VolumeOperationsImpl) deleteLVGIfVolumesNotExistOrUpdate(lvg *lvgcrd.L
 		}
 
 		ac.Spec.Location = drive.Spec.GetUUID()
-		ac.Spec.Size = drive.Spec.GetSize()
+		ac.Spec.Size = 0
 		ac.Spec.StorageClass = util.ConvertDriveTypeToStorageClass(drive.Spec.GetType())
 
 		if err := vo.k8sClient.UpdateCR(context.Background(), ac); err != nil {
