@@ -73,8 +73,12 @@ func (cs *CRHelper) GetACByLocation(location string) (*accrd.AvailableCapacity, 
 		return nil, err
 	}
 
+	ll.Debug("\n####### AC #######\n")
+
 	for _, ac := range acList.Items {
+		ll.Debugf("Name: %s, AC: %v", ac.Name, ac.Spec)
 		if strings.EqualFold(ac.Spec.Location, location) {
+			ll.Debug("\n####### FIND AC #######\n")
 			return &ac, nil
 		}
 	}
