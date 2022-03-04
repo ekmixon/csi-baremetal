@@ -762,7 +762,9 @@ func TestVolumeOperationsImpl_deleteLVGIfVolumesNotExistOrUpdate(t *testing.T) {
 
 	ac := &accrd.AvailableCapacity{}
 	err = svc.k8sClient.ReadCR(context.Background(), testAC4.Name, "", ac)
-	assert.True(t, k8sError.IsNotFound(err))
+	assert.Nil(t, err)
+	assert.Equal(t, ac.Spec.Location, testDriveCR4.Name)
+	assert.Equal(t, ac.Spec.StorageClass, util.ConvertDriveTypeToStorageClass(testDriveCR4.Spec.GetType()))
 
 	// try to remove again
 	isDeleted, err = svc.deleteLVGIfVolumesNotExistOrUpdate(&testLVG, volumeID, &testAC4)
