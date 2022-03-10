@@ -738,7 +738,7 @@ func TestVolumeOperationsImpl_deleteLVGIfVolumesNotExistOrUpdate(t *testing.T) {
 
 	// CR not found error
 	testLVG.Spec.VolumeRefs = []string{volumeID, volumeID1}
-	isDeleted, err := svc.deleteLVGIfVolumesNotExistOrUpdate(&testLVG, volumeID, &testAC4)
+	isDeleted, err := svc.deleteLVGIfVolumesNotExistOrUpdate(testCtx, &testLVG, volumeID, &testAC4)
 	assert.False(t, isDeleted)
 	assert.NotNil(t, err)
 	assert.True(t, k8sError.IsNotFound(err))
@@ -753,7 +753,7 @@ func TestVolumeOperationsImpl_deleteLVGIfVolumesNotExistOrUpdate(t *testing.T) {
 	assert.Nil(t, err)
 
 	// test deletion
-	isDeleted, err = svc.deleteLVGIfVolumesNotExistOrUpdate(&testLVG, volumeID, &testAC4)
+	isDeleted, err = svc.deleteLVGIfVolumesNotExistOrUpdate(testCtx, &testLVG, volumeID, &testAC4)
 	assert.True(t, isDeleted)
 	assert.Nil(t, err)
 	lvg := &lvgcrd.LogicalVolumeGroup{}
@@ -767,7 +767,7 @@ func TestVolumeOperationsImpl_deleteLVGIfVolumesNotExistOrUpdate(t *testing.T) {
 	assert.Equal(t, ac.Spec.StorageClass, util.ConvertDriveTypeToStorageClass(testDriveCR4.Spec.GetType()))
 
 	// try to remove again
-	isDeleted, err = svc.deleteLVGIfVolumesNotExistOrUpdate(&testLVG, volumeID, &testAC4)
+	isDeleted, err = svc.deleteLVGIfVolumesNotExistOrUpdate(testCtx, &testLVG, volumeID, &testAC4)
 	assert.False(t, isDeleted)
 	assert.True(t, k8sError.IsNotFound(err))
 }

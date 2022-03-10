@@ -3,6 +3,7 @@ package drive
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -314,6 +315,12 @@ func (c *Controller) handleDriveUsageRemoving(ctx context.Context, log *logrus.E
 	if !c.checkAllVolsRemoved(volumes) {
 		return ignore, nil
 	}
+
+	// Waiting of LVG CR removed
+	if c.checkLVGExist(drive.Annotations) {
+		return ignore, nil
+	}
+
 	drive.Spec.Usage = apiV1.DriveUsageRemoved
 	if drive.Spec.Status == apiV1.DriveStatusOnline {
 		c.locateDriveLED(ctx, log, drive)
@@ -402,4 +409,14 @@ func (c *Controller) removeRelatedAC(ctx context.Context, log *logrus.Entry, cur
 	}
 
 	return nil
+}
+
+func (c *Controller) checkLVGExist(annotations map[string]string) bool {
+	substr := fmt.Sprintf("%s/", apiV1.DriveAnnotationLVGPrefix)
+	for key := range annotations {
+		if strings.Contains(key, substr) {
+			return true
+		}
+	}
+	return false
 }

@@ -68,6 +68,9 @@ const (
 	DriveAnnotationRemoval            = "removal"
 	DriveAnnotationRemovalReady       = "ready"
 	DriveAnnotationVolumeStatusPrefix = "status"
+	DriveAnnotationLVGPrefix          = "lvg"
+	DriveAnnotationLVGExist           = "exist"
+
 	// Deprecated annotations
 	DriveAnnotationReplacement = "replacement"
 

@@ -453,12 +453,12 @@ func (vo *VolumeOperationsImpl) UpdateCRsAfterVolumeDeletion(ctx context.Context
 	isDeleted := false
 	lvg := &lvgcrd.LogicalVolumeGroup{}
 	if util.IsStorageClassLVG(volumeCR.Spec.StorageClass) {
-		if err = vo.k8sClient.ReadCR(context.Background(), volumeCR.Spec.Location, "", lvg); err != nil {
+		if err = vo.k8sClient.ReadCR(ctx, volumeCR.Spec.Location, "", lvg); err != nil {
 			ll.Errorf("Unable to get LogicalVolumeGroup %s: %v", volumeCR.Spec.Location, err)
 			return
 		}
 
-		if isDeleted, err = vo.deleteLVGIfVolumesNotExistOrUpdate(lvg, volumeCR.Name, &acCR); err != nil {
+		if isDeleted, err = vo.deleteLVGIfVolumesNotExistOrUpdate(ctx, lvg, volumeCR.Name, &acCR); err != nil {
 			ll.Errorf("Unable to remove volume reference from LogicalVolumeGroup %s: %v", volumeCR.Spec.Location, err)
 		}
 	}
@@ -638,7 +638,7 @@ func (vo *VolumeOperationsImpl) UpdateCRsAfterVolumeExpansion(ctx context.Contex
 // If VolumeRefs length equals 0, then deletes according AC and LogicalVolumeGroup
 // Receives LogicalVolumeGroup and volumeID of a Volume CR which should be removed
 // Returns true if LogicalVolumeGroup CR was deleted and false otherwise, error if something went wrong
-func (vo *VolumeOperationsImpl) deleteLVGIfVolumesNotExistOrUpdate(lvg *lvgcrd.LogicalVolumeGroup,
+func (vo *VolumeOperationsImpl) deleteLVGIfVolumesNotExistOrUpdate(ctx context.Context, lvg *lvgcrd.LogicalVolumeGroup,
 	volID string, ac *accrd.AvailableCapacity) (bool, error) {
 	log := vo.log.WithFields(logrus.Fields{
 		"method":   "deleteLVGIfVolumesNotExistOrUpdate",
@@ -651,24 +651,30 @@ func (vo *VolumeOperationsImpl) deleteLVGIfVolumesNotExistOrUpdate(lvg *lvgcrd.L
 	// if only one volume remains - remove AC first and LogicalVolumeGroup then
 	if len(lvg.Spec.VolumeRefs) == 1 && !util.ContainsString(drivesUUIDs, lvg.Spec.Locations[0]) {
 		drive := &drivecrd.Drive{}
-		if err := vo.k8sClient.ReadCR(context.Background(), lvg.Spec.Locations[0], "", drive); err != nil {
+		if err := vo.k8sClient.ReadCR(ctx, lvg.Spec.Locations[0], "", drive); err != nil {
 			log.Errorf("Unable to read Drive %s CR: %v", lvg.Spec.Locations[0], err)
-			return true, vo.k8sClient.DeleteCR(context.Background(), lvg)
+			return false, err
 		}
 
 		ac.Spec.Location = drive.Spec.GetUUID()
 		ac.Spec.Size = drive.Spec.GetSize()
 		ac.Spec.StorageClass = util.ConvertDriveTypeToStorageClass(drive.Spec.GetType())
 
-		if err := vo.k8sClient.UpdateCR(context.Background(), ac); err != nil {
+		if err := vo.k8sClient.UpdateCR(ctx, ac); err != nil {
 			log.Errorf("Unable to update AC %s CR: %v", ac.Name, err)
 			return false, err
 		}
 
-		if err := vo.k8sClient.DeleteCR(context.Background(), lvg); err != nil {
+		if err := vo.k8sClient.DeleteCR(ctx, lvg); err != nil {
 			log.Errorf("Unable to delete LVG %s CR: %v", lvg.Name, err)
 			return false, err
 		}
+
+		if err := vo.deleteLVGAnnotation(ctx, lvg.Spec.Locations, lvg.Name); err != nil {
+			log.Errorf("Unable to delete LVG annotations: %v", err)
+			return false, err
+		}
+
 		return true, nil
 	}
 
@@ -729,4 +735,18 @@ func (vo *VolumeOperationsImpl) getPersistentVolumeClaimLabels(ctx context.Conte
 	}
 
 	return labels, nil
+}
+
+func (vo *VolumeOperationsImpl) deleteLVGAnnotation(ctx context.Context, uuids []string, lvg string) error {
+	for _, uuid := range uuids {
+		if drive := vo.crHelper.GetDriveCRByUUID(uuid); drive != nil {
+			annotationKey := fmt.Sprintf("%s/%s", apiV1.DriveAnnotationLVGPrefix, lvg)
+			delete(drive.Annotations, annotationKey)
+			if err := vo.k8sClient.UpdateCR(ctx, drive); err != nil {
+				vo.log.Errorf("Failed to update drive %s annotations, error: %v", drive.Name, err)
+				return err
+			}
+		}
+	}
+	return nil
 }

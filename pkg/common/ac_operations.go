@@ -19,6 +19,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -39,6 +40,7 @@ type AvailableCapacityOperations interface {
 // ACOperationsImpl is the basic implementation of AvailableCapacityOperations interface
 type ACOperationsImpl struct {
 	k8sClient *k8s.KubeClient
+	crHelper  *k8s.CRHelper
 	log       *logrus.Entry
 }
 
@@ -48,6 +50,7 @@ type ACOperationsImpl struct {
 func NewACOperationsImpl(k8sClient *k8s.KubeClient, l *logrus.Logger) *ACOperationsImpl {
 	return &ACOperationsImpl{
 		k8sClient: k8sClient,
+		crHelper:  k8s.NewCRHelper(k8sClient, l),
 		log:       l.WithField("component", "ACOperations"),
 	}
 }
@@ -97,6 +100,11 @@ func (a *ACOperationsImpl) RecreateACToLVGSC(ctx context.Context, newSC string,
 	}
 	ll.Infof("LVG %v was created.", apiLVG)
 
+	if err = a.addLVGAnnotationToDrives(ctx, lvg.Spec.Locations, lvg.Spec.Name); err != nil {
+		ll.Errorf("Unable to annotate Drives, error: %v.", err)
+		return nil
+	}
+
 	// convert first AC to LVG type
 	updatedAC := &acs[0]
 	updatedAC.Spec.Size = lvgSize
@@ -125,4 +133,23 @@ func (a *ACOperationsImpl) RecreateACToLVGSC(ctx context.Context, newSC string,
 
 	ll.Infof("AC was updated: %v", updatedAC)
 	return updatedAC
+}
+
+func (a *ACOperationsImpl) addLVGAnnotationToDrives(ctx context.Context, uuids []string, lvg string) error {
+	for _, uuid := range uuids {
+		if drive := a.crHelper.GetDriveCRByUUID(uuid); drive != nil {
+			annotationKey := fmt.Sprintf("%s/%s", apiV1.DriveAnnotationLVGPrefix, lvg)
+			// init map if empty
+			if drive.Annotations == nil {
+				drive.Annotations = make(map[string]string)
+			}
+			drive.Annotations[annotationKey] = apiV1.DriveAnnotationLVGExist
+
+			if err := a.k8sClient.UpdateCR(ctx, drive); err != nil {
+				a.log.Errorf("Failed to update drive %s annotations, error: %v", drive.Name, err)
+				return err
+			}
+		}
+	}
+	return nil
 }
