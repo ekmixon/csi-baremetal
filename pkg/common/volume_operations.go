@@ -665,6 +665,8 @@ func (vo *VolumeOperationsImpl) deleteLVGIfVolumesNotExistOrUpdate(ctx context.C
 			return false, err
 		}
 
+		log.Debugf("Updated AC %s CR: %v", ac.Name, ac.Spec)
+
 		if err := vo.k8sClient.DeleteCR(ctx, lvg); err != nil {
 			log.Errorf("Unable to delete LVG %s CR: %v", lvg.Name, err)
 			return false, err

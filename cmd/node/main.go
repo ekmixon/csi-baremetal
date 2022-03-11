@@ -38,7 +38,6 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	api "github.com/dell/csi-baremetal/api/generated/v1"
-	accrd "github.com/dell/csi-baremetal/api/v1/availablecapacitycrd"
 	"github.com/dell/csi-baremetal/api/v1/drivecrd"
 	"github.com/dell/csi-baremetal/api/v1/lvgcrd"
 	"github.com/dell/csi-baremetal/api/v1/volumecrd"
@@ -134,7 +133,7 @@ func main() {
 	csiUDSServer := rpc.NewServerRunner(nil, *csiEndpoint, enableMetrics, logger)
 
 	kubeCache, err := k8s.InitKubeCache(stopCH, logger,
-		&drivecrd.Drive{}, &accrd.AvailableCapacity{}, &volumecrd.Volume{})
+		&drivecrd.Drive{}, &volumecrd.Volume{})
 	if err != nil {
 		logger.Fatalf("fail to start kubeCache, error: %v", err)
 	}
