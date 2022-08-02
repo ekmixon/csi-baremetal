@@ -59,11 +59,11 @@ def run():
     args = parser.parse_args()
 
     lvl = args.loglevel.upper()
- 
+
     logging.basicConfig(level=logging.getLevelName(normalize_logging_level(lvl)))
 
     config.load_incluster_config()
-    
+
     from kubernetes.client import Configuration as KCConfig
     cfg = KCConfig.get_default_copy()
     cfg.verify_ssl = False
@@ -92,7 +92,7 @@ def run():
 
     config_19_volume = Volume("scheduler-config-19", args.target_config_19_path)
     config_19_volume.compile_config()
-    
+
     path =  args.target_config_path
     if kube_major_ver==1 and kube_minor_ver>18:
         path = args.target_config_19_path
@@ -114,7 +114,6 @@ def run():
     while True:
         # check everything is in a right place
         _must_exist(manifest, source_config, source_policy, source_config_19)
-            # copy config and policy if they don't exist or they have different content
         copy_not_equal(source_config_19, target_config_19)
         copy_not_equal(source_config, target_config)
         copy_not_equal(source_policy, target_policy)
@@ -126,14 +125,14 @@ def run():
         if manifest.changed:
             manifest.backup()
             manifest.flush()
-            log.info('manifest file({}) was patched'.format(manifest.path))
+            log.info(f'manifest file({manifest.path}) was patched')
             first_try = False
 
         if first_try:
             manifest.remove()
             manifest.flush()
             first_try = False
-            log.info('manifest file({}) was removed'.format(manifest.path))
+            log.info(f'manifest file({manifest.path}) was removed')
 
         time.sleep(args.interval)
 
@@ -145,7 +144,7 @@ class GracefulKiller:
 
     # restore original configuration if restore parameter passed
     def exit_gracefully(self, signum, frame):
-        log.info('handling signal {}...'.format(signum))
+        log.info(f'handling signal {signum}...')
         if self.restore:
             log.info('restoring original scheduler config...')
             self.file.restore()
@@ -212,13 +211,13 @@ class ManifestFile(File):
         with open(self.path, 'r') as f:
             content = f.read()
             self.content = yaml.load(content, Loader=yaml.FullLoader)
-            log.debug('manifest {} loaded'.format(self.path))
+            log.debug(f'manifest {self.path} loaded')
             self.changed = False
 
     def flush(self):
         with open(self.path, 'w') as f:
             yaml.dump(self.content, f)
-            log.debug('manifest {} dumped'.format(self.path))
+            log.debug(f'manifest {self.path} dumped')
 
     def patch_volumes(self):
         volumes = self.content['spec']['volumes']
@@ -233,7 +232,7 @@ class ManifestFile(File):
 
     def patch_commands(self):
         commands = self.content['spec']['containers'][0]['command']
-        config_command = '--config={}'.format(self.config_path)
+        config_command = f'--config={self.config_path}'
         if config_command not in commands:
             commands.append(config_command)
             self.need_patching()
@@ -246,33 +245,27 @@ class ManifestFile(File):
         try:
             remove(self.path)
         except OSError as e:
-            log.info('manifest file({}) can not be removed: {}'.format(self.path, e))
+            log.info(f'manifest file({self.path}) can not be removed: {e}')
 
 
 def _name_exists(items, name):
-    for i in items:
-        if i['name'] == name:
-            return True
-    return False
+    return any(i['name'] == name for i in items)
 
 
 def _must_exist(*files):
     for f in files:
         if not f.exists():
-            raise FileNotFoundError(
-                'One of the required files is not there - {}'.format(f.path))
+            raise FileNotFoundError(f'One of the required files is not there - {f.path}')
 
 
 def copy_not_equal(src, dst):
     if not src.equal(dst):
         src.copy(dst)
-        log.info('{} copied to {}'.format(src.path, dst.path))
+        log.info(f'{src.path} copied to {dst.path}')
 
 
 def normalize_logging_level(lvl):
-    if lvl == "TRACE":
-        return "DEBUG"
-    return lvl
+    return "DEBUG" if lvl == "TRACE" else lvl
 
 if __name__ == "__main__":
     run()
